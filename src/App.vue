@@ -1,20 +1,31 @@
 <script setup>
 import words from "./words.js";
 import { ref } from "vue";
+import * as ebisu from "ebisu-js";
 
-let randomWord = ref([]);
-let wordBank = ref([]);
+let randomExercise = ref([]);
+let exerciseBank = ref([]);
 let unitsPracticedToday = 0;
 let unitsPracticedYesterday = 0;
-// see if wordBank is in localStorage, if so, load it,  if not, set it to the imported words
-  wordBank.value = words;
+// see if exerciseBank is in localStorage, if so, load it,  if not, set it to the imported exercises
 
-if (!localStorage.getItem("wordBank")) {
-  wordBank.value = words;
+if (!localStorage.getItem("exerciseBank")) {
+  exerciseBank.value = words;
 } else {
-  // if it is in localStorage, set the wordBank to the localStorage value
-  wordBank.value = JSON.parse(localStorage.getItem("wordBank"));
+  // if it is in localStorage, set the exerciseBank to the localStorage value
+  exerciseBank.value = JSON.parse(localStorage.getItem("exerciseBank"));
 }
+
+// for every exercise in the exerciseBank, add properties: model {} and seenAt timestamp (if they don't exist)
+exerciseBank.value.forEach((exercise) => {
+  if (!exercise.model) {
+    // using 2h as half life (have to remember that unit is just h now)
+    exercise.model = ebisu.defaultModel(2);
+  }
+  if (!exercise.seenAt) {
+    exercise.seenAt = new Date().getTime() / 1000;
+  }
+});
 
 // same with localStorage stats
 let stats = {};
@@ -26,82 +37,64 @@ if (!localStorage.getItem("stats")) {
   stats = JSON.parse(localStorage.getItem("stats"));
 }
 
-function getRandomWord() {
-  const dueWords = wordBank.value.filter((word) => {
-    return word.dueDate < new Date().getTime() / 1000 || !word.dueDate;
-  });
-  console.log("dueWords:", dueWords.length);
-  console.log("dueWords", dueWords);
-  isRevealed.value = false;
-  console.log("picking word from", wordBank);
-  if (dueWords.length == 0) {
-    randomWord.value = {};
-    return;
-  }
-  const newWord = dueWords[Math.floor(Math.random() * dueWords.length)];
-  // if newWord is missing property evaluationType, randomly give it 'anki' or 'likert'
-  if (!newWord.evaluationType) {
-    newWord.evaluationType = "anki";
-    newWord.streak = 0;
-    newWord.interval = 10;
-    newWord.dueDate = 0;
-  }
-  valueEase.value = null;
-  valueCorrect.value = null;
-  valueAnki.value = null;
-
-  randomWord.value = newWord;
-  // save the wordBank to localStorage (doesn't make that much sense here in the code but whatever)
-  localStorage.setItem("wordBank", JSON.stringify(wordBank.value));
-}
-
 let isRevealed = ref(false);
 
 let valueEase = ref(null);
 let valueCorrect = ref(null);
 let valueAnki = ref(null);
 
-getRandomWord();
+function getNextExercise() {
+  console.log("getting next exercise");
+  // get exercise with highest probability of being forgotten
+  // use: ebisu.predictRecall(model, elapsed, true):
+  // and return the exercise with the lowest probability
+  exerciseBank.value.forEach((exercise) => {
+    exercise.probability = ebisu.predictRecall(
+      exercise.model,
+      new Date().getTime() / 1000 - exercise.seenAt,
+      true
+    );
+  });
+  exerciseBank.value.sort((a, b) => a.probability - b.probability);
+  randomExercise.value = exerciseBank.value[0];
+}
 
-function evaluateScore() {
-  // if ankiValue is 0, half interval (minimum 10), if ankiValue is 2, double interval
-  if (valueAnki.value == 0) {
-    randomWord.value.interval = Math.max(randomWord.value.interval / 2, 10);
-    randomWord.value.streak = 0;
-  } else if (valueAnki.value == 2) {
-    randomWord.value.streak++;
-    randomWord.value.interval = randomWord.value.interval * 2 * randomWord.value.streak;
-  }
+getNextExercise();
 
-  randomWord.value.dueDate = new Date().getTime() / 1000 + randomWord.value.interval;
-  if (valueAnki.value == null) return;
-  // add a log to the word's repetition property - if the property doesn't exist, create it
-  if (!randomWord.value.repetitions) {
-    randomWord.value.repetitions = [];
-  }
-  // randomWord.value.repetitions.push({
-  //   date: new Date().toISOString(),
-  //   score: valueAnki.value,
-  // });
-  stats.counter++;
-  localStorage.setItem("stats", JSON.stringify(stats));
-  localStorage.setItem("wordBank", JSON.stringify(wordBank.value));
-  getRandomWord();
+function evaluateScore(score) {
+  // scheme:
+  // var model = ebisu.defaultModel(24);
+  // var successes = 1;
+  // var total = 1;
+  // var elapsed = 10;
+  // var newModel = ebisu.updateRecall(model, successes, total, elapsed);
+  // console.log(newModel);
+  const model = randomExercise.value.model;
+  const successes = score;
+  const total = 2;
+  const elapsed = new Date().getTime() / 1000 - randomExercise.value.seenAt;
+  const newModel = ebisu.updateRecall(model, successes, total, elapsed);
+  randomExercise.value.model = newModel;
+  console.log("new model", newModel);
+  randomExercise.value.seenAt = new Date().getTime() / 1000;
+  isRevealed.value = false;
+  getNextExercise();
 }
 </script>
 
 <template>
   <small> Practiced {{ stats.counter }} times so far </small>
-  <div class=""  v-if="!randomWord.q">nothing more to practice.</div>
+  <div class="" v-if="!randomExercise.q">nothing more to practice.</div>
 
   <div
-    class="card bg-gray-600 shadow-xl m-4 flex flex-col items-center w-full max-w-screen-xl" v-else
+    class="card bg-gray-600 shadow-xl m-4 flex flex-col items-center w-full max-w-screen-xl"
+    v-else
   >
     <div class="card-body">
-      <h2 class="card-title my-2 text-6xl">{{ randomWord.q }}</h2>
+      <h2 class="card-title my-2 text-6xl">{{ randomExercise.q }}</h2>
       <div :class="{ hidden: !isRevealed }" class="flex items-center gap-2">
         <p class="my-2 text-xl">
-          {{ randomWord.a }}
+          {{ randomExercise.a }}
         </p>
       </div>
       <div class="card-actions justify-center mt-6 pt-2">
@@ -113,37 +106,28 @@ function evaluateScore() {
           Reveal
         </button>
         <div class="" v-else>
-          <div
-            class="flex gap-2 justify-center items-center"
-            v-if="randomWord.evaluationType == 'anki'"
-          >
+          <div class="flex gap-2 justify-center items-center">
             <button
               class="btn"
               @click="
-                valueAnki = 0;
-                evaluateScore();
+                evaluateScore(0);
               "
-              :class="{ 'btn-primary': valueAnki == 0 }"
             >
               Wrong
             </button>
             <button
               class="btn"
               @click="
-                valueAnki = 1;
-                evaluateScore();
+                evaluateScore(1);
               "
-              :class="{ 'btn-primary': valueAnki == 1 }"
             >
               Kind Of
             </button>
             <button
               class="btn"
               @click="
-                valueAnki = 2;
-                evaluateScore();
+                evaluateScore(2);
               "
-              :class="{ 'btn-primary': valueAnki == 2 }"
             >
               Correct
             </button>
@@ -152,7 +136,7 @@ function evaluateScore() {
       </div>
     </div>
   </div>
-  <br>
+  <br />
 </template>
 
 <style scoped></style>
