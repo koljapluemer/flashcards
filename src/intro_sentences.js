@@ -378,12 +378,6 @@ const sentences = [
         "link": "https://translate.google.com/?sl=auto&tl=ar&text=I+hope+they+will+visit+me+in+Cairo%0A&op=translate"
     },
     {
-        "en": "I hope my family visits me in Cairo",
-        "ar": "أتمنى أن تزورني عائلتي في القاهرة",
-        "tr": "I hope my family visits me in Cairo",
-        "link": "https://translate.google.com/?sl=auto&tl=ar&text=I+hope+my+family+visits+me+in+Cairo%0A&op=translate"
-    },
-    {
         "en": "Maybe they will visit me in Egypt",
         "ar": "ربما سيزورونني في مصر",
         "tr": "rubama sayazurunani fi misr",
