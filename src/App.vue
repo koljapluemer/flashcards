@@ -1,6 +1,6 @@
 <script setup>
 // import words from "./words.js";
-import sentences from "./intro_sentences.js";
+import sentences from "./new_sentences.js";
 import { ref } from "vue";
 import * as ebisu from "ebisu-js";
 
@@ -105,7 +105,16 @@ function evaluateScore(score) {
             {{ randomExercise.tr }}
           </p>
           <div class="div">
-            <a :href="randomExercise.link" class="btn btn-sm">Audio</a>
+            <a
+              target="_blank"
+              :href="
+                'https://translate.google.com/?sl=auto&tl=ar&text=I' +
+                randomExercise.ar +
+                '&op=translate'
+              "
+              class="btn btn-sm"
+              >Audio</a
+            >
           </div>
         </div>
       </div>
